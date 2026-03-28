@@ -1,0 +1,198 @@
+# ===============================
+# EMPLOYEE ATTRITION PROJECT
+# ===============================
+
+# 1. IMPORT LIBRARIES
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report
+
+# ===============================
+# 2. LOAD DATASET
+# ===============================
+df = pd.read_csv("WA_Fn-UseC_-HR-Employee-Attrition.csv")
+
+print("Dataset Loaded Successfully")
+print(df.head())
+
+# ===============================
+# 3. DATA CLEANING
+# ===============================
+
+# Drop unnecessary columns
+df = df.drop(['EmployeeNumber', 'EmployeeCount', 'Over18', 'StandardHours'], axis=1)
+
+# Encode target variable
+le = LabelEncoder()
+df['Attrition'] = le.fit_transform(df['Attrition'])
+
+# Encode binary columns
+binary_cols = ['OverTime', 'Gender']
+for col in binary_cols:
+    df[col] = le.fit_transform(df[col])
+
+# One-hot encoding
+df = pd.get_dummies(df, drop_first=True)
+
+print("\nData Cleaning Completed")
+
+# ===============================
+# 4. EDA (GRAPHS)
+# ===============================
+
+sns.countplot(x='Attrition', data=df)
+plt.title("Attrition Distribution")
+plt.show()
+
+sns.boxplot(x='Attrition', y='MonthlyIncome', data=df)
+plt.title("Salary vs Attrition")
+plt.show()
+
+sns.countplot(x='OverTime', hue='Attrition', data=df)
+plt.title("Overtime vs Attrition")
+plt.show()
+
+# ===============================
+# 5. FEATURE & TARGET
+# ===============================
+
+X = df.drop('Attrition', axis=1)
+y = df['Attrition']
+
+# ===============================
+# 6. TRAIN TEST SPLIT
+# ===============================
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# ===============================
+# 7. SCALING (IMPORTANT)
+# ===============================
+
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+# ===============================
+# 8. MODELS
+# ===============================
+
+# Logistic Regression
+lr = LogisticRegression(max_iter=2000)
+lr.fit(X_train, y_train)
+
+# Decision Tree
+dt = DecisionTreeClassifier()
+dt.fit(X_train, y_train)
+
+# Random Forest
+rf = RandomForestClassifier(n_estimators=200)
+rf.fit(X_train, y_train)
+
+print("\nModels Trained Successfully")
+
+# ===============================
+# 9. PREDICTIONS
+# ===============================
+
+y_pred_lr = lr.predict(X_test)
+y_pred_dt = dt.predict(X_test)
+y_pred_rf = rf.predict(X_test)
+
+# ===============================
+# 10. EVALUATION
+# ===============================
+
+print("\nAccuracy Scores:")
+print("Logistic Regression:", accuracy_score(y_test, y_pred_lr))
+print("Decision Tree:", accuracy_score(y_test, y_pred_dt))
+print("Random Forest:", accuracy_score(y_test, y_pred_rf))
+
+print("\nRandom Forest Report:")
+print(classification_report(y_test, y_pred_rf))
+
+# ===============================
+# 11. FEATURE IMPORTANCE
+# ===============================
+
+importances = rf.feature_importances_
+features = X.columns
+
+importance_df = pd.DataFrame({
+    'Feature': features,
+    'Importance': importances
+}).sort_values(by='Importance', ascending=False)
+
+print("\nTop Features:")
+print(importance_df.head(10))
+
+# Plot
+plt.figure(figsize=(10,6))
+plt.barh(importance_df['Feature'][:10], importance_df['Importance'][:10])
+plt.gca().invert_yaxis()
+plt.title("Top 10 Important Features")
+plt.show()
+
+# ===============================
+# 12. RISK SEGMENTATION
+# ===============================
+
+prob = rf.predict_proba(X_test)[:,1]
+
+risk_levels = []
+
+for p in prob:
+    if p > 0.7:
+        risk_levels.append("High Risk")
+    elif p > 0.4:
+        risk_levels.append("Medium Risk")
+    else:
+        risk_levels.append("Low Risk")
+
+# ===============================
+# 13. RETENTION STRATEGY
+# ===============================
+
+def get_recommendation(row):
+
+    if row['OverTime'] == 1 and row['JobSatisfaction'] < 2:
+        return "Reduce workload and improve work-life balance"
+
+    elif row['MonthlyIncome'] < 3000:
+        return "Consider salary revision"
+
+    elif row['YearsAtCompany'] > 5:
+        return "Provide career growth opportunities"
+
+    else:
+        return "Regular engagement and monitoring"
+
+# ===============================
+# 14. FINAL OUTPUT
+# ===============================
+
+result = pd.DataFrame(X_test, columns=X.columns)
+
+result['Actual'] = y_test.values
+result['Probability'] = prob
+result['Risk Level'] = risk_levels
+
+result['Recommendation'] = result.apply(get_recommendation, axis=1)
+
+print("\nFinal Output:")
+print(result[['Probability', 'Risk Level', 'Recommendation']].head())
+
+# Save result
+result.to_csv("final_employee_results.csv", index=False)
+
+print("\nProject Completed Successfully 🎉")
